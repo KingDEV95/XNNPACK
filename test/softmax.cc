@@ -13,6 +13,7 @@
 
 #include <gtest/gtest.h>
 #include "xnnpack.h"
+#include "xnnpack/math.h"
 #include "xnnpack/node-type.h"
 #include "xnnpack/operator.h"
 #include "xnnpack/subgraph.h"
@@ -213,6 +214,11 @@ TEST_F(SoftmaxTestF32, matches_operator_api)
 
 TEST_F(SoftmaxTestF32, reshape_output)
 {
+  // Choose such range that expf(x[i]) overflows, but expf(x[i] - x_max) doesn't.
+  // However, the range is still narrow enough that single-precision exp doesn't overflow.
+  std::uniform_real_distribution<float> f32dist(90.0f, 100.0f);
+  std::generate(input.begin(), input.end(), [&]() { return f32dist(rng); });
+
   ASSERT_EQ(xnn_status_success, xnn_initialize(/*allocator=*/nullptr));
 
   xnn_subgraph_t subgraph = nullptr;

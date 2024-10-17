@@ -10,15 +10,13 @@
 #include <random>
 #include <vector>
 
-#include <benchmark/benchmark.h>
 #include "bench/utils.h"
-
 #include "xnnpack.h"
-#include "xnnpack/aligned-allocator.h"
 #include "xnnpack/common.h"
 #include "xnnpack/lut.h"
 #include "xnnpack/microfnptr.h"
-
+#include "xnnpack/buffer.h"
+#include <benchmark/benchmark.h>
 
 static void x8_lut(
   benchmark::State& state,
@@ -30,16 +28,14 @@ static void x8_lut(
   }
 
   const size_t num_elements = state.range(0);
-  std::vector<uint8_t, AlignedAllocator<uint8_t, 64>> input(num_elements);
-  std::vector<uint8_t, AlignedAllocator<uint8_t, 64>> output(num_elements);
-  std::vector<uint8_t, AlignedAllocator<uint8_t, 64>> table(256);
+  xnnpack::Buffer<uint8_t, XNN_ALLOCATION_ALIGNMENT> input(num_elements);
+  xnnpack::Buffer<uint8_t, XNN_ALLOCATION_ALIGNMENT> output(num_elements);
+  xnnpack::Buffer<uint8_t, XNN_ALLOCATION_ALIGNMENT> table(256);
 
   std::random_device random_device;
   auto rng = std::mt19937(random_device());
-  auto u8rng = std::bind(
-    std::uniform_int_distribution<uint32_t>(0, std::numeric_limits<uint8_t>::max()), std::ref(rng));
-  std::generate(input.begin(), input.end(), std::ref(u8rng));
-  std::generate(table.begin(), table.end(), std::ref(u8rng));
+  xnnpack::fill_uniform_random_bits(input.data(), input.size(), rng);
+  xnnpack::fill_uniform_random_bits(table.data(), table.size(), rng);
 
   for (auto _ : state) {
     lut(num_elements * sizeof(uint8_t), input.data(), output.data(), table.data());

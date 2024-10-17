@@ -16,6 +16,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "xnnpack.h"
+#include "xnnpack/math.h"
 #include "xnnpack/node-type.h"
 #include "xnnpack/operator.h"
 #include "xnnpack/subgraph.h"
@@ -30,8 +31,8 @@ public:
     offsets = RandomOffsets(this->dims);
     std::tie(sizes, inferrable_sizes) = RandomSizes(this->dims, offsets);
     // Overwrite outputs since slice output size is different from input.
-    this->operator_output = std::vector<T>(this->NumElements(sizes));
-    this->subgraph_output = std::vector<T>(this->NumElements(sizes));
+    this->operator_output = xnnpack::Buffer<T>(this->NumElements(sizes));
+    this->subgraph_output = xnnpack::Buffer<T>(this->NumElements(sizes));
   }
 
 private:

@@ -20,7 +20,7 @@
 
 #include <gtest/gtest.h>
 #include "xnnpack.h"
-#include "xnnpack/aligned-allocator.h"
+#include "xnnpack/buffer.h"
 #include "xnnpack/common.h"
 #include "xnnpack/log.h"
 #include "xnnpack/math.h"
@@ -130,12 +130,12 @@ class ReduceTestBase : public ::testing::TestWithParam<Param> {
         std::accumulate(output_shape.cbegin(), output_shape.cend(), size_t(1),
                         std::multiplies<size_t>());
 
-    input = std::vector<char>(XNN_EXTRA_BYTES / sizeof(char) +
-                              num_input_elements * SizeOf(p.datatype));
+    input = xnnpack::Buffer<char>(XNN_EXTRA_BYTES / sizeof(char) +
+                                  num_input_elements * SizeOf(p.datatype));
     operator_output =
-        std::vector<char>(num_output_elements * SizeOf(p.datatype));
+        xnnpack::Buffer<char>(num_output_elements * SizeOf(p.datatype));
     subgraph_output =
-        std::vector<char>(num_output_elements * SizeOf(p.datatype));
+        xnnpack::Buffer<char>(num_output_elements * SizeOf(p.datatype));
   }
 
   struct QuantizationParams {
@@ -288,9 +288,9 @@ class ReduceTestBase : public ::testing::TestWithParam<Param> {
   std::vector<size_t> output_shape;
   size_t num_output_elements;
 
-  std::vector<char> input;
-  std::vector<char> operator_output;
-  std::vector<char> subgraph_output;
+  xnnpack::Buffer<char> input;
+  xnnpack::Buffer<char> operator_output;
+  xnnpack::Buffer<char> subgraph_output;
 };
 
 using ReduceTest = ReduceTestBase<void>;
@@ -311,7 +311,7 @@ INSTANTIATE_TEST_SUITE_P(ReduceTest, ReduceTest,
                              Values(xnn_reduce_sum, xnn_reduce_mean), Bool())),
                          [](auto p) { return p.param.Name(); });
 
-TEST_P(ReduceTest, SubgraphDefineWorks) {
+TEST_P(ReduceTest, define) {
   const Param p = GetParam();
   ASSERT_EQ(xnn_status_success, xnn_initialize(/*allocator=*/nullptr));
 
@@ -347,7 +347,7 @@ TEST_P(ReduceTest, SubgraphDefineWorks) {
   ASSERT_EQ(node->flags, p.keep_dims ? XNN_FLAG_KEEP_DIMS : 0);
 }
 
-TEST_P(ReduceTest, SubgraphAPIResultsMatchesOperatorAPI) {
+TEST_P(ReduceTest, matches_operator_api) {
   const Param p = GetParam();
   ASSERT_EQ(xnn_status_success, xnn_initialize(/*allocator=*/nullptr));
 
@@ -383,10 +383,10 @@ TEST_P(ReduceTest, SubgraphAPIResultsMatchesOperatorAPI) {
 
   ASSERT_NE(workspace_size, SIZE_MAX);
   ASSERT_LE(workspace_alignment, XNN_ALLOCATION_ALIGNMENT);
-  std::vector<char, AlignedAllocator<char, XNN_ALLOCATION_ALIGNMENT>> workspace;
+  xnnpack::Buffer<char, XNN_ALLOCATION_ALIGNMENT> workspace;
   void* workspace_ptr = nullptr;
   if (p.datatype != xnn_datatype_fp32) {
-    workspace.resize(workspace_size);
+    workspace = xnnpack::Buffer<char, XNN_ALLOCATION_ALIGNMENT>(workspace_size);
     workspace_ptr = workspace.data();
   }
   ASSERT_EQ(xnn_status_success,
@@ -463,9 +463,11 @@ TEST_P(ReduceTest, SubgraphAPIResultsMatchesOperatorAPI) {
   CompareOutputs(p.datatype);
 }
 
-TEST_P(ReduceTest, ReshapingWorks) {
+TEST_P(ReduceTest, reshape) {
   const Param p = GetParam();
   ASSERT_EQ(xnn_status_success, xnn_initialize(/*allocator=*/nullptr));
+
+  GenerateRandomInput(p.datatype);
 
   // Call subgraph API.
   xnn_subgraph_t subgraph = nullptr;
